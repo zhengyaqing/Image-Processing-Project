@@ -37,12 +37,17 @@ function ImageProcessingApp()
     uimenu(segmentation_menu, 'Label', 'Threshold Segmentation', 'Callback', @thresholdSegmentation);
     uimenu(segmentation_menu, 'Label', 'Connected Component Segmentation', 'Callback', @connectedComponentSeg);
     
+    % Object Extraction menu
+    object_menu = uimenu(fig, 'Label', 'Object Extraction');
+    uimenu(object_menu, 'Label', 'Extract Object', 'Callback', @extractObject);
+
     % Feature extraction menu
     feature_menu = uimenu(fig, 'Label', 'Feature Extraction');
     uimenu(feature_menu, 'Label', 'LBP Features', 'Callback', @extractLBPFeatures);
     uimenu(feature_menu, 'Label', 'HOG Features', 'Callback', @extractHOGFeatures);
     uimenu(feature_menu, 'Label', 'Combined Features', 'Callback', @extractAllImageFeatures);
     
+
     % Image display axes
     handles.original_axes = axes('Parent', fig, 'Position', [0.1 0.1 0.4 0.8]);
     handles.processed_axes = axes('Parent', fig, 'Position', [0.55 0.1 0.4 0.8]);
@@ -186,51 +191,107 @@ function contrastEnhancement(hObject, ~)
     end
 end
 
-
-% Geometric Transforms
 function geometricTransforms(hObject, ~)
     handles = guidata(hObject);
     if ~isempty(handles.original_image)
-        % Create transform options dialog
-        choice = questdlg('Select Geometric Transform', ...
-            'Geometric Transforms', ...
-            'Scaling', 'Rotation', 'Scaling');
+        % Create a new figure for transform controls
+        control_fig = figure('Name', 'Transform Controls', ...
+                           'Position', [300, 300, 400, 200], ...
+                           'NumberTitle', 'off', ...
+                           'MenuBar', 'none');
         
-        switch choice
-            case 'Scaling'
-                % Ask for scale factor
-                prompt = {'Enter Scale Factor:'};
-                dlg_title = 'Scaling';
-                num_lines = 1;
-                defaultans = {'1.5'};
-                answer = inputdlg(prompt, dlg_title, num_lines, defaultans);
-                if ~isempty(answer)
-                    scale_factor = str2double(answer{1});
-                    handles.processed_image = imageScaling(handles.original_image, scale_factor);
-                    imshow(handles.processed_image, 'Parent', handles.processed_axes);
-                    guidata(hObject, handles);
-                end
-                
-            case 'Rotation'
-            % Ask for rotation angle
-            prompt = {'Enter Rotation Angle (degrees):'};
-            dlg_title = 'Rotation';
-            num_lines = 1;
-            defaultans = {'45'};
-            answer = inputdlg(prompt, dlg_title, num_lines, defaultans);
-            if ~isempty(answer)
-                angle = str2double(answer{1});
-                handles.processed_image = imageRotation(handles.original_image, angle);
-                imshow(handles.processed_image, 'Parent', handles.processed_axes);
-                guidata(hObject, handles);
-            end
-
-
-            otherwise
-                return;
-        end
+        % Add rotation slider
+        uicontrol('Parent', control_fig, ...
+                 'Style', 'text', ...
+                 'Position', [20, 160, 100, 20], ...
+                 'String', 'Rotation Angle:');
+        
+        rotation_slider = uicontrol('Parent', control_fig, ...
+                                  'Style', 'slider', ...
+                                  'Position', [130, 160, 200, 20], ...
+                                  'Min', 0, 'Max', 360, ...
+                                  'Value', 0, ...
+                                  'SliderStep', [1/360, 10/360]);
+        
+        rotation_text = uicontrol('Parent', control_fig, ...
+                                'Style', 'text', ...
+                                'Position', [340, 160, 40, 20], ...
+                                'String', '0°');
+        
+        % Add scale slider
+        uicontrol('Parent', control_fig, ...
+                 'Style', 'text', ...
+                 'Position', [20, 120, 100, 20], ...
+                 'String', 'Scale Factor:');
+        
+        scale_slider = uicontrol('Parent', control_fig, ...
+                               'Style', 'slider', ...
+                               'Position', [130, 120, 200, 20], ...
+                               'Min', 0.1, 'Max', 3, ...
+                               'Value', 1, ...
+                               'SliderStep', [0.1/2.9, 0.5/2.9]);
+        
+        scale_text = uicontrol('Parent', control_fig, ...
+                             'Style', 'text', ...
+                             'Position', [340, 120, 40, 20], ...
+                             'String', '1.0x');
+        
+        % Add reset button
+        uicontrol('Parent', control_fig, ...
+                 'Style', 'pushbutton', ...
+                 'Position', [150, 20, 100, 30], ...
+                 'String', 'Reset', ...
+                 'Callback', @resetTransforms);
+        
+        % Store original image and handles
+        setappdata(control_fig, 'handles', handles);
+        setappdata(control_fig, 'original_image', handles.original_image);
+    
+        % Add listeners for continuous updates
+        addlistener(rotation_slider, 'Value', 'PostSet', @updateTransform);
+        addlistener(scale_slider, 'Value', 'PostSet', @updateTransform);
+        
+        % Initial transform
+        updateTransform();
+    end  % end if
+    
+    % Nested functions defined at end of main function
+    function updateTransform(~, ~)
+        local_handles = getappdata(control_fig, 'handles');
+        orig_img = getappdata(control_fig, 'original_image');
+    
+        % Get current values
+        angle = get(rotation_slider, 'Value');
+        scale = get(scale_slider, 'Value');
+    
+        % Update text displays
+        set(rotation_text, 'String', sprintf('%.1f°', angle));
+        set(scale_text, 'String', sprintf('%.1fx', scale));
+    
+        % Apply custom scaling
+        scaled_img = imageScaling(orig_img, scale);
+    
+        % Rotate image
+        transformed_img = imageRotation(scaled_img, angle);
+    
+        % Update display
+        imshow(transformed_img, 'Parent', local_handles.processed_axes);
+    
+        % Store processed image
+        local_handles.processed_image = transformed_img;
+        guidata(hObject, local_handles);
     end
-end
+
+    
+    function resetTransforms(~, ~)
+        set(rotation_slider, 'Value', 0);
+        set(scale_slider, 'Value', 1);
+        set(rotation_text, 'String', '0°');
+        set(scale_text, 'String', '1.0x');
+        updateTransform();
+    end
+end  % end main function
+
 
 
 % Noise Addition
@@ -327,6 +388,18 @@ function extractLBPFeatures(hObject, ~)
     handles = guidata(hObject);
     if ~isempty(handles.original_image)
         computeLBP(handles.original_image);
+    end
+end
+
+%object extraction
+function extractObject(hObject, ~)
+    handles = guidata(hObject);
+    if ~isempty(handles.original_image)
+        [handles.processed_image, mask] = objectExtraction(handles.original_image);
+        imshow(handles.processed_image, 'Parent', handles.processed_axes);
+        guidata(hObject, handles);
+    else
+        msgbox('Please load an image first!', 'Error', 'error');
     end
 end
 

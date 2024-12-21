@@ -1,25 +1,33 @@
 function transformed_img = imageRotation(input_img, angle)
-    % Image Rotation Function with full image display
+    % Image Rotation Function with full image display around center
     
     if nargin < 2
         angle = 45; % Default rotation angle in degrees
     end
     
-    % Get the size of the input image
+    % Get size of input image
     [rows, cols, ~] = size(input_img);
     
-    % Create the affine transformation matrix for rotation
-    tform = affine2d([cosd(angle) -sind(angle) 0; 
-                      sind(angle) cosd(angle) 0; 
-                      0 0 1]);
+    % Calculate the center of the image
+    cx = cols / 2;
+    cy = rows / 2;
     
-    % Calculate the output image reference (bounding box after rotation)
-    % We need to calculate the new bounds after rotation
-    output_ref = imref2d([rows, cols]);
+    % Create affine transformation matrix for rotation around the image center
+    tform_translate1 = affine2d([1 0 0; 0 1 0; -cx -cy 1]); % Translate to origin
+    tform_rotate = affine2d([cosd(angle) -sind(angle) 0; sind(angle) cosd(angle) 0; 0 0 1]); % Rotate
+    tform_translate2 = affine2d([1 0 0; 0 1 0; cx cy 1]); % Translate back
     
-    % Rotate the image using `imwarp`, passing the new reference object
-    transformed_img = imwarp(input_img, tform, 'OutputView', output_ref);
+    % Combine transformations
+    tform_combined = affine2d(tform_translate1.T * tform_rotate.T * tform_translate2.T);
     
-    % Display the transformed image
-    imshow(transformed_img);
+    % Calculate new output limits
+    [xlim, ylim] = outputLimits(tform_combined, [1 cols], [1 rows]);
+    width = ceil(max(xlim) - min(xlim));
+    height = ceil(max(ylim) - min(ylim));
+    
+    % Create new output reference
+    output_ref = imref2d([height, width]);
+    
+    % Apply rotation using `imwarp`
+    transformed_img = imwarp(input_img, tform_combined, 'OutputView', output_ref);
 end
