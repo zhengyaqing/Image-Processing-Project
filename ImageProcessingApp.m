@@ -22,6 +22,11 @@ function ImageProcessingApp()
     uimenu(process_menu, 'Label', 'Contrast Enhancement', 'Callback', @contrastEnhancement);
     uimenu(process_menu, 'Label', 'Geometric Transforms', 'Callback', @geometricTransforms);
     uimenu(process_menu, 'Label', 'Add Noise', 'Callback', @addNoiseToImage);
+    
+     % Filtering menu
+    filter_menu = uimenu(fig, 'Label', 'Filtering');
+    uimenu(filter_menu, 'Label', 'Spatial Filtering', 'Callback', @applySpatialFilter);
+    uimenu(filter_menu, 'Label', 'Frequency Filtering', 'Callback', @applyFrequencyFilter);
 
     
     % Edge detection menu
@@ -55,7 +60,8 @@ function ImageProcessingApp()
     % Store global variables
     handles.original_image = [];
     handles.processed_image = [];
-    
+    handles.noisy_image = []; % For storing the noisy image
+
     % Store handles in figure's application data
     guidata(fig, handles);
 end
@@ -194,131 +200,180 @@ end
 function geometricTransforms(hObject, ~)
     handles = guidata(hObject);
     if ~isempty(handles.original_image)
-        % Create a new figure for transform controls
+        % Create a new figure for transform controls with edit boxes instead of sliders
         control_fig = figure('Name', 'Transform Controls', ...
-                           'Position', [300, 300, 400, 200], ...
+                           'Position', [300, 300, 300, 200], ...
                            'NumberTitle', 'off', ...
                            'MenuBar', 'none');
         
-        % Add rotation slider
+        % Add rotation input
         uicontrol('Parent', control_fig, ...
                  'Style', 'text', ...
                  'Position', [20, 160, 100, 20], ...
                  'String', 'Rotation Angle:');
         
-        rotation_slider = uicontrol('Parent', control_fig, ...
-                                  'Style', 'slider', ...
-                                  'Position', [130, 160, 200, 20], ...
-                                  'Min', 0, 'Max', 360, ...
-                                  'Value', 0, ...
-                                  'SliderStep', [1/360, 10/360]);
+        rotation_edit = uicontrol('Parent', control_fig, ...
+                                'Style', 'edit', ...
+                                'Position', [130, 160, 60, 20], ...
+                                'String', '0', ...
+                                'Callback', @updateTransform);
         
-        rotation_text = uicontrol('Parent', control_fig, ...
-                                'Style', 'text', ...
-                                'Position', [340, 160, 40, 20], ...
-                                'String', '0°');
+        uicontrol('Parent', control_fig, ...
+                 'Style', 'text', ...
+                 'Position', [195, 160, 20, 20], ...
+                 'String', '°');
         
-        % Add scale slider
+        % Add scale input
         uicontrol('Parent', control_fig, ...
                  'Style', 'text', ...
                  'Position', [20, 120, 100, 20], ...
                  'String', 'Scale Factor:');
         
-        scale_slider = uicontrol('Parent', control_fig, ...
-                               'Style', 'slider', ...
-                               'Position', [130, 120, 200, 20], ...
-                               'Min', 0.1, 'Max', 3, ...
-                               'Value', 1, ...
-                               'SliderStep', [0.1/2.9, 0.5/2.9]);
+        scale_edit = uicontrol('Parent', control_fig, ...
+                              'Style', 'edit', ...
+                              'Position', [130, 120, 60, 20], ...
+                              'String', '1.0', ...
+                              'Callback', @updateTransform);
         
-        scale_text = uicontrol('Parent', control_fig, ...
-                             'Style', 'text', ...
-                             'Position', [340, 120, 40, 20], ...
-                             'String', '1.0x');
+        uicontrol('Parent', control_fig, ...
+                 'Style', 'text', ...
+                 'Position', [195, 120, 20, 20], ...
+                 'String', 'x');
         
-        % Add reset button
+        % Add Apply button
         uicontrol('Parent', control_fig, ...
                  'Style', 'pushbutton', ...
-                 'Position', [150, 20, 100, 30], ...
+                 'Position', [20, 70, 100, 30], ...
+                 'String', 'Apply', ...
+                 'Callback', @updateTransform);
+        
+        % Add Reset button
+        uicontrol('Parent', control_fig, ...
+                 'Style', 'pushbutton', ...
+                 'Position', [130, 70, 100, 30], ...
                  'String', 'Reset', ...
                  'Callback', @resetTransforms);
         
-        % Store original image and handles
+        % Store handles and original image
         setappdata(control_fig, 'handles', handles);
         setappdata(control_fig, 'original_image', handles.original_image);
-    
-        % Add listeners for continuous updates
-        addlistener(rotation_slider, 'Value', 'PostSet', @updateTransform);
-        addlistener(scale_slider, 'Value', 'PostSet', @updateTransform);
+        setappdata(control_fig, 'rotation_edit', rotation_edit);
+        setappdata(control_fig, 'scale_edit', scale_edit);
         
         % Initial transform
         updateTransform();
-    end  % end if
-    
-    % Nested functions defined at end of main function
-    function updateTransform(~, ~)
-        local_handles = getappdata(control_fig, 'handles');
-        orig_img = getappdata(control_fig, 'original_image');
-    
-        % Get current values
-        angle = get(rotation_slider, 'Value');
-        scale = get(scale_slider, 'Value');
-    
-        % Update text displays
-        set(rotation_text, 'String', sprintf('%.1f°', angle));
-        set(scale_text, 'String', sprintf('%.1fx', scale));
-    
-        % Apply custom scaling
-        scaled_img = imageScaling(orig_img, scale);
-    
-        % Rotate image
-        transformed_img = imageRotation(scaled_img, angle);
-    
-        % Update display
-        imshow(transformed_img, 'Parent', local_handles.processed_axes);
-    
-        % Store processed image
-        local_handles.processed_image = transformed_img;
-        guidata(hObject, local_handles);
     end
-
+    
+    % Nested functions
+    function updateTransform(~, ~)
+        try
+            local_handles = getappdata(control_fig, 'handles');
+            orig_img = getappdata(control_fig, 'original_image');
+            
+            % Get values from edit boxes
+            angle = str2double(get(getappdata(control_fig, 'rotation_edit'), 'String'));
+            scale = str2double(get(getappdata(control_fig, 'scale_edit'), 'String'));
+            
+            % Validate inputs
+            if isnan(angle) || isnan(scale)
+                errordlg('Please enter valid numbers', 'Input Error');
+                return;
+            end
+            
+            if scale <= 0
+                errordlg('Scale factor must be positive', 'Input Error');
+                return;
+            end
+            
+            % Apply transformations
+            scaled_img = imageScaling(orig_img, scale);
+            transformed_img = imageRotation(scaled_img, angle);
+            
+            % Update display
+            axes(local_handles.processed_axes);
+            imshow(transformed_img);
+            
+            % Store processed image
+            local_handles.processed_image = transformed_img;
+            guidata(hObject, local_handles);
+        catch e
+            errordlg(['Error: ' e.message], 'Transform Error');
+        end
+    end
     
     function resetTransforms(~, ~)
-        set(rotation_slider, 'Value', 0);
-        set(scale_slider, 'Value', 1);
-        set(rotation_text, 'String', '0°');
-        set(scale_text, 'String', '1.0x');
+        set(getappdata(control_fig, 'rotation_edit'), 'String', '0');
+        set(getappdata(control_fig, 'scale_edit'), 'String', '1.0');
         updateTransform();
-    end
-end  % end main function
-
-
-
-% Noise Addition
-function addNoiseToImage(hObject, ~)
-    handles = guidata(hObject);
-    if ~isempty(handles.original_image)
-        % 创建噪声类型选择对话框
-        choice = questdlg('Select Noise Type', ...
-            'Add Noise', ...
-            'Gaussian', 'Salt & Pepper', 'Speckle', 'Gaussian');
-        
-        switch choice
-            case 'Gaussian'
-                handles.processed_image = addNoise(handles.original_image, 'gaussian');
-            case 'Salt & Pepper'
-                handles.processed_image = addNoise(handles.original_image, 'salt & pepper');
-            case 'Speckle'
-                handles.processed_image = addNoise(handles.original_image, 'speckle');
-            otherwise
-                return;
-        end
-        
-        imshow(handles.processed_image, 'Parent', handles.processed_axes);
-        guidata(hObject, handles);
     end
 end
 
+
+% Add Noise Function
+function addNoiseToImage(hObject, ~)
+    handles = guidata(hObject);
+    if ~isempty(handles.original_image)
+        % Select noise type and level
+        choice = questdlg('Select Noise Type', ...
+            'Add Noise', ...
+            'Gaussian', 'Salt & Pepper', 'Speckle', 'Gaussian');
+        prompt = {'Enter noise level (default: 0.05):'};
+        answer = inputdlg(prompt, 'Noise Level', 1, {'0.05'});
+        noise_level = str2double(answer{1});
+        if isnan(noise_level) || noise_level <= 0
+            noise_level = 0.05; % Default value
+        end
+        
+        % Apply noise
+        handles.noisy_image = addNoise(handles.original_image, choice, noise_level);
+        imshow(handles.noisy_image, 'Parent', handles.processed_axes);
+        guidata(hObject, handles);
+    else
+        msgbox('Please load an image first!', 'Error', 'error');
+    end
+end
+
+function applySpatialFilter(hObject, ~)
+    handles = guidata(hObject);
+    if ~isempty(handles.noisy_image)
+        % Select filter type
+        choice = questdlg('Select Spatial Filter', ...
+            'Spatial Filtering', ...
+            'Median', 'Mean', 'Gaussian', 'Median');
+
+        % Map filter type to lowercase
+        filterType = lower(choice);
+
+        % Apply spatial filter
+        handles.processed_image = spatialFilter(handles.noisy_image, filterType);
+
+        % Display the processed image
+        imshow(handles.processed_image, 'Parent', handles.processed_axes);
+        guidata(hObject, handles);
+    else
+        msgbox('Please add noise to the image first!', 'Error', 'error');
+    end
+end
+
+
+
+
+
+% Frequency Filtering
+function applyFrequencyFilter(hObject, ~)
+    handles = guidata(hObject);
+    if ~isempty(handles.noisy_image)
+        % Select filter type
+        choice = questdlg('Select Frequency Filter', ...
+            'Frequency Filtering', ...
+            'Lowpass', 'Highpass', 'Lowpass');
+        handles.processed_image = frequencyFilter(handles.noisy_image, lower(choice));
+        imshow(handles.processed_image, 'Parent', handles.processed_axes);
+        guidata(hObject, handles);
+    else
+        msgbox('Please add noise to the image first!', 'Error', 'error');
+    end
+end
 
 % Edge Detection Callbacks
 function compareEdges(hObject, ~)
