@@ -1,24 +1,23 @@
-% Custom Histogram Matching Function
 function output_img = histogramMatch(input_img, reference_img)
-    % Ensure both input images are of type uint8
+    % 确保输入和参考图像的类型为 uint8
     input_img = uint8(input_img);
     reference_img = uint8(reference_img);
 
-    % Compute the histograms of the input and reference images
+    % 计算输入图像和参考图像的直方图
     input_hist = imhist(input_img);
     reference_hist = imhist(reference_img);
-    
-    % Compute the cumulative distribution functions (CDFs)
+
+    % 计算输入图像和参考图像的累积分布函数（CDF）
     cdf_input = cumsum(input_hist) / numel(input_img);
     cdf_reference = cumsum(reference_hist) / numel(reference_img);
-    
-    % Create a mapping of input image intensities to reference image intensities
+
+    % 创建映射关系：将输入图像的灰度值映射到参考图像
     mapping = zeros(256, 1);
     for i = 1:256
-        [~, idx] = min(abs(cdf_input(i) - cdf_reference)); % Find the closest match
-        mapping(i) = idx - 1; % Map input intensity to reference intensity
+        [~, idx] = min(abs(cdf_input(i) - cdf_reference)); % 找到最接近的CDF值
+        mapping(i) = idx - 1; % 映射到参考图像的灰度值
     end
-    
-    % Apply the mapping to the input image
+
+    % 应用映射关系到输入图像
     output_img = uint8(mapping(double(input_img) + 1));
 end

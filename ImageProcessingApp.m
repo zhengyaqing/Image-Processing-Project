@@ -9,24 +9,30 @@ function ImageProcessingApp()
                  'Toolbar', 'none');
     
     % Create main menu
-    file_menu = uimenu(fig, 'Label', 'File');
-    uimenu(file_menu, 'Label', 'Open Image', 'Callback', @openImage);
-    uimenu(file_menu, 'Label', 'Save Image', 'Callback', @saveImage);
-    uimenu(file_menu, 'Label', 'Exit', 'Callback', 'close');
+    file_menu = uimenu(fig, 'Label', '文件');
+    uimenu(file_menu, 'Label', '打开图片', 'Callback', @openImage);
+    uimenu(file_menu, 'Label', '保存图片', 'Callback', @saveImage);
+    uimenu(file_menu, 'Label', '取消', 'Callback', 'close');
     
     % Processing menus
-    process_menu = uimenu(fig, 'Label', 'Image Processing');
-    uimenu(process_menu, 'Label', 'Histogram Equalization', 'Callback', @histogramEqualization);
-    uimenu(process_menu, 'Label', 'Histogram Matching', 'Callback', @histogramMatching);
-    uimenu(process_menu, 'Label', 'Show Histogram', 'Callback', @showHistogram);
-    uimenu(process_menu, 'Label', 'Contrast Enhancement', 'Callback', @contrastEnhancement);
-    uimenu(process_menu, 'Label', 'Geometric Transforms', 'Callback', @geometricTransforms);
-    uimenu(process_menu, 'Label', 'Add Noise', 'Callback', @addNoiseToImage);
+    process_menu = uimenu(fig, 'Label', '直方图');
+    uimenu(process_menu, 'Label', '灰度直方图', 'Callback', @showHistogram);
+    uimenu(process_menu, 'Label', '直方图均衡化', 'Callback', @histogramEqualization);
+    uimenu(process_menu, 'Label', '直方图匹配', 'Callback', @histogramMatching);
     
-     % Filtering menu
-    filter_menu = uimenu(fig, 'Label', 'Filtering');
-    uimenu(filter_menu, 'Label', 'Spatial Filtering', 'Callback', @applySpatialFilter);
-    uimenu(filter_menu, 'Label', 'Frequency Filtering', 'Callback', @applyFrequencyFilter);
+    process_menu = uimenu(fig, 'Label', '对比度增强');
+    uimenu(process_menu, 'Label', '对比度增强', 'Callback', @contrastEnhancement);
+
+    process_menu = uimenu(fig, 'Label', '几何变换');
+    uimenu(process_menu, 'Label', '缩放图像', 'Callback', @scaleImage);
+    uimenu(process_menu, 'Label', '图像旋转', 'Callback', @rotateImage);
+
+    process_menu = uimenu(fig, 'Label', '图像加噪');
+    uimenu(process_menu, 'Label', '添加噪声', 'Callback', @addNoiseToImage);
+    
+    filter_menu = uimenu(fig, 'Label', '滤波');
+    uimenu(filter_menu, 'Label', '空域滤波', 'Callback', @applySpatialFilter);
+    uimenu(filter_menu, 'Label', '频域滤波', 'Callback', @applyFrequencyFilter);
 
     
     % Edge detection menu
@@ -56,7 +62,9 @@ function ImageProcessingApp()
     % Image display axes
     handles.original_axes = axes('Parent', fig, 'Position', [0.1 0.1 0.4 0.8]);
     handles.processed_axes = axes('Parent', fig, 'Position', [0.55 0.1 0.4 0.8]);
-    
+    axis(handles.original_axes, 'image');
+    axis(handles.processed_axes, 'image');
+
     % Store global variables
     handles.original_image = [];
     handles.processed_image = [];
@@ -93,81 +101,148 @@ function saveImage(hObject, ~)
     end
 end
 
-% Show Histogram of Original Image
+% 显示原始图像的直方图函数
 function showHistogram(hObject, ~)
+    % 获取 GUI 中的句柄结构体
     handles = guidata(hObject);
+
+    % 检查是否加载了原始图像
     if ~isempty(handles.original_image)
-        % Ensure the image is in grayscale
+        % 确保图像为灰度图像
         if size(handles.original_image, 3) > 1
-            % Convert to grayscale if it's a color image
-            img = rgb2gray(handles.original_image);
+            % 如果是彩色图像，将其转换为灰度图像
+            img = rgb2gray_custom(handles.original_image); % 自定义灰度转换函数
         else
+            % 如果已经是灰度图像，直接使用
             img = handles.original_image;
         end
-        % Call the plotHistogram function
-        plotHistogram(img);
+        % 使用自定义函数绘制直方图
+        plotHistogramCustom(img);
     else
-        msgbox('No image loaded to show histogram!', 'Error', 'error');
+        % 如果未加载图像，弹出消息框提示用户
+        msgbox('未加载图像，无法显示直方图！', '错误', 'error');
     end
 end
 
-% Plot Histogram Function
-function plotHistogram(img)
-    % Plot histogram of grayscale image
-    figure;
-    subplot(2,1,1);
-    imshow(img);
-    title('Original Image');
-    
-    subplot(2,1,2);
-    histogram(img, 256, 'Normalization', 'probability');
-    title('Histogram');
-    xlabel('Pixel Intensity');
-    ylabel('Probability');
-end
-
-
-% Histogram Equalization
+% 直方图均衡化 
 function histogramEqualization(hObject, ~)
     handles = guidata(hObject);
     if ~isempty(handles.original_image)
-        % Perform histogram equalization
-        handles.processed_image = histeq(handles.original_image);
-        imshow(handles.processed_image, 'Parent', handles.processed_axes);
-        guidata(hObject, handles);
+        % 如果图像是彩色图像，转换为灰度图像
+        if size(handles.original_image, 3) > 1
+            input_img = rgb2gray(handles.original_image);
+        else
+            input_img = handles.original_image;
+        end
+
+        % 执行直方图均衡化
+        processed_img = histeq(input_img);
+
+        % 创建新窗口
+        figure('Name', '直方图均衡化结果', 'NumberTitle', 'off', 'Position', [100, 100, 800, 400]);
+
+        % 左侧显示均衡化后的图像
+        subplot(1, 2, 1);
+        imshow(processed_img);
+        title('均衡化后的图像');
+
+        % 右侧绘制均衡化后的直方图
+        subplot(1, 2, 2);
+        equalized_hist = imhist(processed_img);
+        bar(0:255, equalized_hist, 'BarWidth', 1, 'FaceColor', [0.3, 0.3, 0.9]);
+        title('均衡化后的直方图');
+        xlabel('灰度值');
+        ylabel('像素数量');
+        grid on;
+
+    else
+        % 如果没有加载图像，弹出错误提示
+        msgbox('未加载图像，无法进行直方图均衡化！', '错误', 'error');
     end
 end
 
-% Histogram Matching
+
+
+% 直方图匹配
 function histogramMatching(hObject, ~)
     handles = guidata(hObject);
     if ~isempty(handles.original_image)
-        % Ensure the original image is in grayscale
+        % 确保原始图像是灰度图像
         if size(handles.original_image, 3) > 1
-            handles.original_image = rgb2gray(handles.original_image);
+            input_img = rgb2gray(handles.original_image);
+        else
+            input_img = handles.original_image;
         end
         
-        % Ask for a reference image
-        [filename, pathname] = uigetfile({'*.jpg;*.png;*.bmp', 'Image Files'});
+        % 提示用户选择参考图像
+        [filename, pathname] = uigetfile({'*.jpg;*.png;*.bmp', 'Image Files'}, '选择参考图像');
         if filename ~= 0
             reference_img = imread(fullfile(pathname, filename));
             
-            % Ensure the reference image is in grayscale
+            % 确保参考图像是灰度图像
             if size(reference_img, 3) > 1
                 reference_img = rgb2gray(reference_img);
             end
             
-            % Perform histogram matching
-            handles.processed_image = histogramMatch(handles.original_image, reference_img);
-            imshow(handles.processed_image, 'Parent', handles.processed_axes);
-            guidata(hObject, handles);
+            % 执行直方图匹配
+            processed_img = histogramMatch(input_img, reference_img);
+
+            % 创建新窗口显示对比结果
+            figure('Name', '直方图匹配结果', 'NumberTitle', 'off', 'Position', [100, 100, 1200, 800]);
+
+            % 左上显示原始图像
+            subplot(2, 3, 1);
+            imshow(input_img);
+            title('原始图像');
+
+            % 右上显示原始图像的直方图
+            subplot(2, 3, 2);
+            input_hist = imhist(input_img);
+            bar(0:255, input_hist, 'BarWidth', 1, 'FaceColor', [0.3, 0.7, 0.3]);
+            title('原始图像的直方图');
+            xlabel('灰度值');
+            ylabel('像素数量');
+            grid on;
+
+            % 左下显示参考图像
+            subplot(2, 3, 4);
+            imshow(reference_img);
+            title('参考图像');
+
+            % 右下显示参考图像的直方图
+            subplot(2, 3, 5);
+            reference_hist = imhist(reference_img);
+            bar(0:255, reference_hist, 'BarWidth', 1, 'FaceColor', [0.3, 0.4, 0.8]);
+            title('参考图像的直方图');
+            xlabel('灰度值');
+            ylabel('像素数量');
+            grid on;
+
+            % 中间显示匹配后的图像
+            subplot(2, 3, 3);
+            imshow(processed_img);
+            title('匹配后的图像');
+
+            % 中间下方显示匹配后图像的直方图
+            subplot(2, 3, 6);
+            matched_hist = imhist(processed_img);
+            bar(0:255, matched_hist, 'BarWidth', 1, 'FaceColor', [0.8, 0.5, 0.2]);
+            title('匹配后图像的直方图');
+            xlabel('灰度值');
+            ylabel('像素数量');
+            grid on;
+
+        else
+            msgbox('未选择参考图像！', '错误', 'error');
         end
+    else
+        msgbox('未加载原始图像！', '错误', 'error');
     end
 end
 
 
 
-% Contrast Enhancement 
+%对比度增强
 function contrastEnhancement(hObject, ~)
     handles = guidata(hObject);
     if ~isempty(handles.original_image)
@@ -178,15 +253,15 @@ function contrastEnhancement(hObject, ~)
 
         % Create enhancement options dialog
         choice = questdlg('Select Contrast Enhancement Method', ...
-            'Contrast Enhancement', ...
-            'Linear Stretch', 'Logarithmic', 'Exponential', 'Linear Stretch');
+            '对比度增强', ...
+            '线性变换', '对数变换', '指数变换', '线性变换');
         
         switch choice
-            case 'Linear Stretch'
+            case '线性变换'
                 handles.processed_image = linearContrastStretch(handles.original_image);
-            case 'Logarithmic'
+            case '对数变换'
                 handles.processed_image = logarithmicTransform(handles.original_image);
-            case 'Exponential'
+            case '指数变换'
                 handles.processed_image = exponentialTransform(handles.original_image);
             otherwise
                 return;
@@ -196,118 +271,94 @@ function contrastEnhancement(hObject, ~)
         guidata(hObject, handles);
     end
 end
-%GeometricTransforms
-function geometricTransforms(hObject, ~)
+
+%Scale Image
+function scaleImage(hObject, ~)
     handles = guidata(hObject);
+
     if ~isempty(handles.original_image)
-        % Create a new figure for transform controls with edit boxes instead of sliders
-        control_fig = figure('Name', 'Transform Controls', ...
-                           'Position', [300, 300, 300, 200], ...
-                           'NumberTitle', 'off', ...
-                           'MenuBar', 'none');
-        
-        % Add rotation input
-        uicontrol('Parent', control_fig, ...
-                 'Style', 'text', ...
-                 'Position', [20, 160, 100, 20], ...
-                 'String', 'Rotation Angle:');
-        
-        rotation_edit = uicontrol('Parent', control_fig, ...
-                                'Style', 'edit', ...
-                                'Position', [130, 160, 60, 20], ...
-                                'String', '0', ...
-                                'Callback', @updateTransform);
-        
-        uicontrol('Parent', control_fig, ...
-                 'Style', 'text', ...
-                 'Position', [195, 160, 20, 20], ...
-                 'String', '°');
-        
-        % Add scale input
-        uicontrol('Parent', control_fig, ...
-                 'Style', 'text', ...
-                 'Position', [20, 120, 100, 20], ...
-                 'String', 'Scale Factor:');
-        
-        scale_edit = uicontrol('Parent', control_fig, ...
-                              'Style', 'edit', ...
-                              'Position', [130, 120, 60, 20], ...
-                              'String', '1.0', ...
-                              'Callback', @updateTransform);
-        
-        uicontrol('Parent', control_fig, ...
-                 'Style', 'text', ...
-                 'Position', [195, 120, 20, 20], ...
-                 'String', 'x');
-        
-        % Add Apply button
-        uicontrol('Parent', control_fig, ...
-                 'Style', 'pushbutton', ...
-                 'Position', [20, 70, 100, 30], ...
-                 'String', 'Apply', ...
-                 'Callback', @updateTransform);
-        
-        % Add Reset button
-        uicontrol('Parent', control_fig, ...
-                 'Style', 'pushbutton', ...
-                 'Position', [130, 70, 100, 30], ...
-                 'String', 'Reset', ...
-                 'Callback', @resetTransforms);
-        
-        % Store handles and original image
-        setappdata(control_fig, 'handles', handles);
-        setappdata(control_fig, 'original_image', handles.original_image);
-        setappdata(control_fig, 'rotation_edit', rotation_edit);
-        setappdata(control_fig, 'scale_edit', scale_edit);
-        
-        % Initial transform
-        updateTransform();
-    end
-    
-    % Nested functions
-    function updateTransform(~, ~)
-        try
-            local_handles = getappdata(control_fig, 'handles');
-            orig_img = getappdata(control_fig, 'original_image');
-            
-            % Get values from edit boxes
-            angle = str2double(get(getappdata(control_fig, 'rotation_edit'), 'String'));
-            scale = str2double(get(getappdata(control_fig, 'scale_edit'), 'String'));
-            
-            % Validate inputs
-            if isnan(angle) || isnan(scale)
-                errordlg('Please enter valid numbers', 'Input Error');
+        % 弹出对话框获取缩放比例
+        prompt = {'请输入缩放比例（>0）:'};
+        dlg_title = '图像缩放';
+        dims = [1 50];
+        def_input = {'1.5'};
+        answer = inputdlg(prompt, dlg_title, dims, def_input);
+
+        if ~isempty(answer)
+            scale_factor = str2double(answer{1});
+
+            if isnan(scale_factor) || scale_factor <= 0
+                msgbox('缩放比例必须为正数！', '错误', 'error');
                 return;
             end
-            
-            if scale <= 0
-                errordlg('Scale factor must be positive', 'Input Error');
-                return;
-            end
-            
-            % Apply transformations
-            scaled_img = imageScaling(orig_img, scale);
-            transformed_img = imageRotation(scaled_img, angle);
-            
-            % Update display
-            axes(local_handles.processed_axes);
-            imshow(transformed_img);
-            
-            % Store processed image
-            local_handles.processed_image = transformed_img;
-            guidata(hObject, local_handles);
-        catch e
-            errordlg(['Error: ' e.message], 'Transform Error');
+
+            % 调用 imageScaling 函数
+            scaled_image = imageScaling(handles.original_image, scale_factor);
+
+            % 调试信息输出
+            %disp(['Original Size: ', mat2str(size(handles.original_image))]);
+            %disp(['Scaled Size: ', mat2str(size(scaled_image))]);
+
+            % 弹出窗口显示原图
+            figure('Name', 'Original Image');
+            imshow(handles.original_image);
+            title('原图');
+
+            % 弹出窗口显示缩放后的图像
+            figure('Name', 'Scaled Image');
+            imshow(scaled_image);
+            title(['缩放后的图像 (比例: ', num2str(scale_factor), ')']);
+
+            % 更新句柄数据
+            handles.processed_image = scaled_image;
+            guidata(hObject, handles);
         end
-    end
-    
-    function resetTransforms(~, ~)
-        set(getappdata(control_fig, 'rotation_edit'), 'String', '0');
-        set(getappdata(control_fig, 'scale_edit'), 'String', '1.0');
-        updateTransform();
+    else
+        msgbox('请先加载图像！', '错误', 'error');
     end
 end
 
+%Rotate Image
+function rotateImage(hObject, ~)
+    handles = guidata(hObject);
+
+    if ~isempty(handles.original_image)
+        % Prompt user for rotation angle
+        prompt = {'请输入旋转角度（正负均可）:'};
+        dlg_title = '图像旋转';
+        dims = [1 50];
+        def_input = {'45'};
+        answer = inputdlg(prompt, dlg_title, dims, def_input);
+
+        if ~isempty(answer)
+            angle = str2double(answer{1});
+
+            if isnan(angle)
+                msgbox('旋转角度必须是一个数字！', '错误', 'error');
+                return;
+            end
+
+            % 调用自定义的 imageRotation 函数
+            rotated_image = imageRotation(handles.original_image, angle);
+
+            % 显示原图和旋转后的图像
+            figure('Name', 'Image Rotation Results');
+            subplot(1, 2, 1);
+            imshow(handles.original_image);
+            title('原图');
+
+            subplot(1, 2, 2);
+            imshow(rotated_image);
+            title(['旋转后的图像 (角度: ', num2str(angle), '°)']);
+
+            % 更新句柄数据
+            handles.processed_image = rotated_image;
+            guidata(hObject, handles);
+        end
+    else
+        msgbox('请先加载图像！', '错误', 'error');
+    end
+end
 
 % Add Noise Function
 function addNoiseToImage(hObject, ~)
@@ -354,9 +405,6 @@ function applySpatialFilter(hObject, ~)
         msgbox('Please add noise to the image first!', 'Error', 'error');
     end
 end
-
-
-
 
 
 % Frequency Filtering
