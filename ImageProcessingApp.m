@@ -196,7 +196,7 @@ function contrastEnhancement(hObject, ~)
         guidata(hObject, handles);
     end
 end
-
+%GeometricTransforms
 function geometricTransforms(hObject, ~)
     handles = guidata(hObject);
     if ~isempty(handles.original_image)
@@ -438,32 +438,70 @@ function connectedComponentSeg(hObject, ~)
     end
 end
 
-% Feature Extraction Callbacks
-function extractLBPFeatures(hObject, ~)
-    handles = guidata(hObject);
-    if ~isempty(handles.original_image)
-        computeLBP(handles.original_image);
-    end
-end
+
 
 %object extraction
 function extractObject(hObject, ~)
     handles = guidata(hObject);
     if ~isempty(handles.original_image)
-        [handles.processed_image, mask] = objectExtraction(handles.original_image);
-        imshow(handles.processed_image, 'Parent', handles.processed_axes);
+        % Perform object extraction and feature extraction
+        [extracted_img, mask, lbp_img, hog_img] = objectExtraction(handles.original_image);
+        
+        % Display extracted object
+        imshow(extracted_img, 'Parent', handles.processed_axes);
+        
+        % Store results in handles
+        handles.processed_image = extracted_img;
+        handles.lbp_image = lbp_img;
+        handles.hog_image = hog_img;
+        guidata(hObject, handles);
+        
+        % Optionally show additional features
+        figure('Name', 'Feature Extraction Results');
+        subplot(1,2,1); imshow(lbp_img); title('LBP Features');
+        subplot(1,2,2); imshow(hog_img); title('HOG Features');
+    else
+        msgbox('Please load an image first!', 'Error', 'error');
+    end
+end
+
+
+% Feature Extraction
+function extractLBPFeatures(hObject, ~)
+    handles = guidata(hObject);
+    if ~isempty(handles.original_image)
+        % Call LBP function to get LBP image
+        lbp_image = computeLBP(handles.original_image);
+        
+        % Display the LBP image
+        imshow(lbp_image, 'Parent', handles.processed_axes);
+        
+        % Store the processed image
+        handles.processed_image = lbp_image;
         guidata(hObject, handles);
     else
         msgbox('Please load an image first!', 'Error', 'error');
     end
 end
 
+
 function extractHOGFeatures(hObject, ~)
     handles = guidata(hObject);
     if ~isempty(handles.original_image)
-        computeHOG(handles.original_image);
+        % Call HOG function to get HOG image
+        hog_image = computeHOG(handles.original_image);
+        
+        % Display the HOG image
+        imshow(hog_image, 'Parent', handles.processed_axes);
+        
+        % Store the processed image
+        handles.processed_image = hog_image;
+        guidata(hObject, handles);
+    else
+        msgbox('Please load an image first!', 'Error', 'error');
     end
 end
+
 
 function extractAllImageFeatures(hObject, ~)
     handles = guidata(hObject);

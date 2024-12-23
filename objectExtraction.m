@@ -1,12 +1,13 @@
-% objectExtraction.m
-function [extracted_img, mask] = objectExtraction(input_img)
-    % Object extraction using multiple image processing techniques
+function [extracted_img, mask, lbp_img, hog_img] = objectExtraction(input_img)
+    % Object extraction and feature extraction (LBP and HOG)
     % Parameters:
     %   input_img - Input image (RGB or grayscale)
     % Returns:
     %   extracted_img - Image with extracted object
     %   mask - Binary mask of the extracted object
-    
+    %   lbp_img - LBP feature visualization
+    %   hog_img - HOG feature visualization
+
     % Convert to grayscale if needed
     if size(input_img, 3) > 1
         gray_img = rgb2gray(input_img);
@@ -48,13 +49,21 @@ function [extracted_img, mask] = objectExtraction(input_img)
         channel(~mask) = 0;
         extracted_img(:,:,i) = channel;
     end
+
+    % Perform LBP feature extraction
+    lbp_img = computeLBP(extracted_img);
+    
+    % Perform HOG feature extraction
+    hog_img = computeHOG(extracted_img);
     
     % Visualize results
-    figure('Name', 'Object Extraction Results');
-    subplot(2,3,1); imshow(input_img); title('Original Image');
-    subplot(2,3,2); imshow(enhanced_img); title('Enhanced Image');
-    subplot(2,3,3); imshow(edge_img); title('Edge Detection');
-    subplot(2,3,4); imshow(filled_img); title('Filled Image');
-    subplot(2,3,5); imshow(mask); title('Final Mask');
-    subplot(2,3,6); imshow(extracted_img); title('Extracted Object');
+    figure('Name', 'Object Extraction and Feature Extraction');
+    subplot(2,4,1); imshow(input_img); title('Original Image');
+    subplot(2,4,2); imshow(enhanced_img); title('Enhanced Image');
+    subplot(2,4,3); imshow(edge_img); title('Edge Detection');
+    subplot(2,4,4); imshow(filled_img); title('Filled Image');
+    subplot(2,4,5); imshow(mask); title('Final Mask');
+    subplot(2,4,6); imshow(extracted_img); title('Extracted Object');
+    subplot(2,4,7); imshow(lbp_img); title('LBP Features');
+    subplot(2,4,8); imshow(hog_img); title('HOG Features');
 end
